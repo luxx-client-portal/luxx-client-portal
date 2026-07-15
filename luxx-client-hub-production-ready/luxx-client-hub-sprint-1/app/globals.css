@@ -525,3 +525,95 @@
     margin-left: 56px;
   }
 }
+
+.invoice-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.invoice-row {
+  display: grid;
+  grid-template-columns:
+    46px
+    minmax(180px, 1fr)
+    minmax(150px, 0.7fr)
+    minmax(130px, auto)
+    auto;
+  gap: 18px;
+  align-items: center;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.invoice-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  color: var(--primary-dark);
+  background: var(--primary-light);
+  border-radius: 13px;
+}
+
+.invoice-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.invoice-copy small,
+.invoice-due,
+.invoice-no-file {
+  color: var(--muted);
+}
+
+.invoice-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.invoice-amount {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.invoice-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--brown);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+@media (max-width: 900px) {
+  .invoice-row {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+  }
+
+  .invoice-due {
+    grid-column: 2 / -1;
+  }
+
+  .invoice-action,
+  .invoice-no-file {
+    grid-column: 2 / -1;
+    width: fit-content;
+  }
+}
+
+@media (max-width: 600px) {
+  .invoice-row {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .invoice-amount {
+    grid-column: 2;
+    justify-items: start;
+  }
+}
