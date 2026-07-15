@@ -228,3 +228,48 @@
     text-align: left;
   }
 }
+
+.workspace-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 28px 0 30px;
+  padding: 8px;
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+.workspace-tabs a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  white-space: nowrap;
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 700;
+  border-radius: 12px;
+  transition:
+    color 160ms ease,
+    background 160ms ease;
+}
+
+.workspace-tabs a:hover {
+  color: var(--text);
+  background: var(--primary-light);
+}
+
+.workspace-tabs svg {
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .workspace-tabs {
+    justify-content: flex-start;
+  }
+}
