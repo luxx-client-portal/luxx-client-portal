@@ -1,0 +1,5 @@
+-- After creating your own user in Authentication > Users, make yourself admin:
+-- update public.profiles set role='admin', full_name='Priscilla Hardie' where id='YOUR_AUTH_USER_UUID';
+-- Create a client and assign a client user:
+-- insert into public.clients(name,slug) values('Best Marine Products','best-marine-products');
+-- update public.profiles set client_id=(select id from public.clients where slug='best-marine-products') where id='CLIENT_AUTH_USER_UUID';
