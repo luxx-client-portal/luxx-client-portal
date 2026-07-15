@@ -888,3 +888,22 @@
     grid-template-columns: 1fr;
   }
 }
+
+.content-admin-layout {
+  display: grid;
+  grid-template-columns:
+    minmax(280px, 0.7fr)
+    minmax(0, 1.7fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.content-admin-layout > .card {
+  min-width: 0;
+}
+
+@media (max-width: 1050px) {
+  .content-admin-layout {
+    grid-template-columns: 1fr;
+  }
+}
