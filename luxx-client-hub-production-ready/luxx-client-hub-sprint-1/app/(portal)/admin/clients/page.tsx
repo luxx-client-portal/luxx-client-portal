@@ -100,7 +100,7 @@ export default async function ClientsPage({
 
       <section className="admin-grid">
         <AdminForm
-          title="Add new client"
+          title="Create Client Workspace"
           action={createClientAction}
         >
           <label>
@@ -108,7 +108,7 @@ export default async function ClientsPage({
             <input
               name="name"
               required
-              placeholder="Best Marine Products"
+              placeholder=""
             />
           </label>
 
@@ -117,7 +117,7 @@ export default async function ClientsPage({
             <input
               name="slug"
               required
-              placeholder="best-marine-products"
+              placeholder=""
             />
           </label>
 
@@ -125,7 +125,7 @@ export default async function ClientsPage({
             Primary contact
             <input
               name="contact_name"
-              placeholder="Mike Padgett"
+              placeholder=""
             />
           </label>
 
@@ -134,7 +134,7 @@ export default async function ClientsPage({
             <input
               name="email"
               type="email"
-              placeholder="mike@company.com"
+              placeholder=""
             />
           </label>
 
@@ -143,7 +143,7 @@ export default async function ClientsPage({
             <input
               name="phone"
               type="tel"
-              placeholder="305-555-0123"
+              placeholder=""
             />
           </label>
 
@@ -151,7 +151,7 @@ export default async function ClientsPage({
             Package
             <input
               name="package_name"
-              placeholder="Social Media Management"
+              placeholder=""
             />
           </label>
 
@@ -162,7 +162,7 @@ export default async function ClientsPage({
               type="number"
               min="0"
               step="1"
-              placeholder="1500"
+              placeholder=""
             />
           </label>
 
@@ -186,7 +186,7 @@ export default async function ClientsPage({
             Services
             <input
               name="services"
-              placeholder="Social Media, Website, Email"
+              placeholder=""
             />
           </label>
 
