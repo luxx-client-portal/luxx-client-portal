@@ -141,3 +141,40 @@ export async function createInvoiceAction(formData: FormData) {
   revalidatePath('/invoices');
   revalidatePath('/dashboard');
 }
+
+export async function createClientNoteAction(
+  formData: FormData,
+) {
+  const profile = await requireProfile(true);
+  const supabase = await createClient();
+
+  const clientId = String(
+    formData.get('client_id') || '',
+  );
+
+  const body = String(formData.get('body') || '').trim();
+
+  if (!clientId || !body) {
+    throw new Error('Client and note are required.');
+  }
+
+  const { error } = await supabase
+    .from('client_notes')
+    .insert({
+      client_id: clientId,
+      author_id: profile.id,
+      body,
+    });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath(
+    `/admin/clients/${clientId}/notes`,
+  );
+
+  revalidatePath(
+    `/admin/clients/${clientId}`,
+  );
+}
