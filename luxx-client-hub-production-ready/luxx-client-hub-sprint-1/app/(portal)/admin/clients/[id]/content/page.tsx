@@ -1,3 +1,4 @@
+import ContentUploadForm from '@/components/ContentUploadForm';
 import { notFound } from 'next/navigation';
 import {
   CalendarDays,
@@ -7,19 +8,26 @@ import {
 
 import { requireProfile } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
-import { createContentAction } from '@/lib/actions/portal';
 import { Badge, Empty } from '@/components/UI';
-import { AdminForm } from '@/components/AdminForms';
 import { dateLabel } from '@/lib/utils';
+
+type ContentAsset = {
+  id: string;
+  storage_path: string;
+  file_name: string;
+  mime_type: string | null;
+  sort_order: number;
+  signed_url?: string | null;
+};
 
 type ContentRecord = {
   id: string;
   title: string;
   content_type: string | null;
   caption: string | null;
-  preview_url: string | null;
   scheduled_for: string | null;
   status: string;
+  content_assets: ContentAsset[] | null;
 };
 
 export default async function ClientContentPage({
@@ -45,7 +53,21 @@ export default async function ClientContentPage({
 
   const { data, error } = await supabase
     .from('content_items')
-    .select('*')
+    .select(`
+      id,
+      title,
+      content_type,
+      caption,
+      scheduled_for,
+      status,
+      content_assets (
+        id,
+        storage_path,
+        file_name,
+        mime_type,
+        sort_order
+      )
+    `)
     .eq('client_id', id)
     .order('scheduled_for', {
       ascending: true,
@@ -58,17 +80,43 @@ export default async function ClientContentPage({
 
   const items = (data || []) as ContentRecord[];
 
-  const pending = items.filter(
+  const itemsWithSignedUrls = await Promise.all(
+    items.map(async (item) => {
+      const orderedAssets = [...(item.content_assets || [])].sort(
+        (a, b) => a.sort_order - b.sort_order,
+      );
+
+      const assetsWithUrls = await Promise.all(
+        orderedAssets.map(async (asset) => {
+          const { data: signedData } = await supabase.storage
+            .from('content-assets')
+            .createSignedUrl(asset.storage_path, 60 * 60);
+
+          return {
+            ...asset,
+            signed_url: signedData?.signedUrl || null,
+          };
+        }),
+      );
+
+      return {
+        ...item,
+        content_assets: assetsWithUrls,
+      };
+    }),
+  );
+
+  const pending = itemsWithSignedUrls.filter(
     (item) =>
       item.status === 'client_review' ||
       item.status === 'changes_requested',
   );
 
-  const approved = items.filter(
+  const approved = itemsWithSignedUrls.filter(
     (item) => item.status === 'approved',
   );
 
-  const scheduled = items.filter(
+  const scheduled = itemsWithSignedUrls.filter(
     (item) => item.status === 'scheduled',
   );
 
@@ -92,188 +140,98 @@ export default async function ClientContentPage({
 
         <Stat
           label="Total content"
-          value={String(items.length)}
+          value={String(itemsWithSignedUrls.length)}
         />
       </section>
 
       <section className="content-admin-layout">
-        <AdminForm
-          title="Add Content"
-          action={createContentAction}
-        >
-          <input
-            type="hidden"
-            name="client_id"
-            value={id}
-          />
-
-          <label>
-            Content title
-            <input name="title" required />
-          </label>
-
-          <label>
-            Content type
-            <select
-              name="content_type"
-              defaultValue="Reel"
-            >
-              <option value="Reel">Reel</option>
-              <option value="Carousel">
-                Carousel
-              </option>
-              <option value="Photo">Photo</option>
-              <option value="Story">Story</option>
-              <option value="TikTok">TikTok</option>
-              <option value="Video">Video</option>
-            </select>
-          </label>
-
-          <label>
-            Caption
-            <textarea
-              name="caption"
-              rows={8}
-            />
-          </label>
-
-          <label>
-            Preview URL
-            <input
-              name="preview_url"
-              type="url"
-            />
-          </label>
-
-          <label>
-            Scheduled date and time
-            <input
-              name="scheduled_for"
-              type="datetime-local"
-            />
-          </label>
-
-          <label>
-            Status
-            <select
-              name="status"
-              defaultValue="draft"
-            >
-              <option value="draft">Draft</option>
-
-              <option value="internal_review">
-                Internal review
-              </option>
-
-              <option value="client_review">
-                Client review
-              </option>
-
-              <option value="changes_requested">
-                Changes requested
-              </option>
-
-              <option value="approved">
-                Approved
-              </option>
-
-              <option value="scheduled">
-                Scheduled
-              </option>
-
-              <option value="posted">
-                Posted
-              </option>
-            </select>
-          </label>
-        </AdminForm>
+        <ContentUploadForm clientId={id} />
 
         <div className="card">
           <div className="card-head">
             <div>
-              <p className="eyebrow">
-                CONTENT LIBRARY
-              </p>
-
+              <p className="eyebrow">CONTENT LIBRARY</p>
               <h2>All content</h2>
             </div>
           </div>
 
-          {items.length ? (
+          {itemsWithSignedUrls.length ? (
             <div className="content-grid">
-              {items.map((item) => (
-                <article
-                  className="content-item-card"
-                  key={item.id}
-                >
-                  <div className="content-item-preview">
-                    {item.preview_url ? (
-                      isVideoContent(
-                        item.content_type,
-                        item.preview_url,
-                      ) ? (
-                        <video
-                          src={item.preview_url}
-                          controls
-                          preload="metadata"
-                        />
-                      ) : (
-                        <img
-                          src={item.preview_url}
-                          alt={item.title}
-                        />
-                      )
-                    ) : (
-                      <div className="content-placeholder">
-                        {isVideoContent(
-                          item.content_type,
-                          '',
-                        ) ? (
-                          <Video size={28} />
+              {itemsWithSignedUrls.map((item) => {
+                const assets = item.content_assets || [];
+                const firstAsset = assets[0];
+
+                return (
+                  <article
+                    className="content-item-card"
+                    key={item.id}
+                  >
+                    <div className="content-item-preview">
+                      {firstAsset?.signed_url ? (
+                        isVideoAsset(firstAsset) ? (
+                          <video
+                            src={firstAsset.signed_url}
+                            controls
+                            preload="metadata"
+                          />
                         ) : (
-                          <ImageIcon size={28} />
-                        )}
-                      </div>
-                    )}
-                  </div>
+                          <img
+                            src={firstAsset.signed_url}
+                            alt={item.title}
+                          />
+                        )
+                      ) : (
+                        <div className="content-placeholder">
+                          {isVideoContent(item.content_type) ? (
+                            <Video size={28} />
+                          ) : (
+                            <ImageIcon size={28} />
+                          )}
+                        </div>
+                      )}
 
-                  <div className="content-item-body">
-                    <div className="content-item-heading">
-                      <div>
-                        <strong>{item.title}</strong>
-
-                        <small>
-                          {item.content_type ||
-                            'Post'}
-                        </small>
-                      </div>
-
-                      <Badge value={item.status} />
+                      {assets.length > 1 && (
+                        <span className="asset-count">
+                          {assets.length} slides
+                        </span>
+                      )}
                     </div>
 
-                    {item.caption && (
-                      <p className="content-caption">
-                        {item.caption}
-                      </p>
-                    )}
+                    <div className="content-item-body">
+                      <div className="content-item-heading">
+                        <div>
+                          <strong>{item.title}</strong>
 
-                    <div className="content-item-date">
-                      <CalendarDays size={15} />
+                          <small>
+                            {item.content_type || 'Post'}
+                          </small>
+                        </div>
 
-                      {item.scheduled_for
-                        ? dateLabel(
-                            item.scheduled_for,
-                          )
-                        : 'Not scheduled'}
+                        <Badge value={item.status} />
+                      </div>
+
+                      {item.caption && (
+                        <p className="content-caption">
+                          {item.caption}
+                        </p>
+                      )}
+
+                      <div className="content-item-date">
+                        <CalendarDays size={15} />
+
+                        {item.scheduled_for
+                          ? dateLabel(item.scheduled_for)
+                          : 'Not scheduled'}
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           ) : (
             <Empty
               title="No content yet"
-              body="Add the first post using the form."
+              body="Upload the first post using the form."
             />
           )}
         </div>
@@ -282,17 +240,20 @@ export default async function ClientContentPage({
   );
 }
 
-function isVideoContent(
-  contentType: string | null,
-  url: string,
-) {
+function isVideoContent(contentType: string | null) {
   const type = contentType?.toLowerCase() || '';
 
   return (
     type === 'reel' ||
     type === 'video' ||
-    type === 'tiktok' ||
-    /\.(mp4|mov|webm)(\?.*)?$/i.test(url)
+    type === 'tiktok'
+  );
+}
+
+function isVideoAsset(asset: ContentAsset) {
+  return (
+    asset.mime_type?.startsWith('video/') ||
+    /\.(mp4|mov|webm)(\?.*)?$/i.test(asset.file_name)
   );
 }
 
