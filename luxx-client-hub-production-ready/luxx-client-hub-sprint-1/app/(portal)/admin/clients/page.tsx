@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import {
+  ArrowRight,
   Building2,
   DollarSign,
   Mail,
@@ -105,54 +106,27 @@ export default async function ClientsPage({
         >
           <label>
             Business name
-            <input
-              name="name"
-              required
-              placeholder=""
-            />
-          </label>
-
-          <label>
-            Workspace slug
-            <input
-              name="slug"
-              required
-              placeholder=""
-            />
+            <input name="name" required />
           </label>
 
           <label>
             Primary contact
-            <input
-              name="contact_name"
-              placeholder=""
-            />
+            <input name="contact_name" />
           </label>
 
           <label>
             Contact email
-            <input
-              name="email"
-              type="email"
-              placeholder=""
-            />
+            <input name="email" type="email" />
           </label>
 
           <label>
             Phone number
-            <input
-              name="phone"
-              type="tel"
-              placeholder=""
-            />
+            <input name="phone" type="tel" />
           </label>
 
           <label>
             Package
-            <input
-              name="package_name"
-              placeholder=""
-            />
+            <input name="package_name" />
           </label>
 
           <label>
@@ -162,32 +136,22 @@ export default async function ClientsPage({
               type="number"
               min="0"
               step="1"
-              placeholder=""
             />
           </label>
 
           <label>
             Contract start
-            <input
-              name="contract_start"
-              type="date"
-            />
+            <input name="contract_start" type="date" />
           </label>
 
           <label>
             Contract end
-            <input
-              name="contract_end"
-              type="date"
-            />
+            <input name="contract_end" type="date" />
           </label>
 
           <label>
             Services
-            <input
-              name="services"
-              placeholder=""
-            />
+            <input name="services" />
           </label>
 
           <label>
@@ -202,32 +166,27 @@ export default async function ClientsPage({
 
           <label>
             Internal notes
-            <textarea
-              name="notes"
-              rows={4}
-              placeholder="Private notes for the Luxx team."
-            />
+            <textarea name="notes" rows={4} />
           </label>
         </AdminForm>
 
         <div className="card">
           <div className="card-head">
             <div>
-              <p className="eyebrow">CLIENT CRM</p>
-              <h2>Client workspaces</h2>
+              <p className="eyebrow">CLIENT WORKSPACES</p>
+              <h2>Clients</h2>
             </div>
           </div>
 
           <form method="get" className="client-search">
-            <Search size={18} />
+            <Search size={20} />
 
             <input
               name="search"
               defaultValue={search}
-              placeholder="Search clients..."
+              placeholder="Search clients"
+              aria-label="Search clients"
             />
-
-            <button type="submit">Search</button>
           </form>
 
           {clients.length ? (
@@ -286,7 +245,7 @@ export default async function ClientsPage({
                       </strong>
                     </div>
 
-                    <div className="align-right">
+                    <div>
                       <small>Services</small>
                       <strong>
                         {client.services?.length
@@ -294,6 +253,11 @@ export default async function ClientsPage({
                           : 'Not added'}
                       </strong>
                     </div>
+
+                    <span className="workspace-link">
+                      Open workspace
+                      <ArrowRight size={16} />
+                    </span>
                   </div>
                 </Link>
               ))}
