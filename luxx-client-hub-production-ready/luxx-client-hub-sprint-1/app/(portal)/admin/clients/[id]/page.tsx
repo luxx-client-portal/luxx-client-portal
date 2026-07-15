@@ -1,33 +1,24 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
-  ArrowLeft,
   CalendarDays,
   FileText,
-  Mail,
   MessageSquare,
-  Phone,
   ReceiptText,
-  Users,
 } from 'lucide-react';
 
 import { requireProfile } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
-import { Badge, Empty, PageHeader } from '@/components/UI';
+import { Badge, Empty } from '@/components/UI';
 import { dateLabel, money } from '@/lib/utils';
 
 type ClientRecord = {
   id: string;
   name: string;
-  slug: string;
-  contact_name: string | null;
-  email: string | null;
-  phone: string | null;
   package_name: string | null;
   monthly_retainer: number | null;
   contract_start: string | null;
   contract_end: string | null;
-  status: string;
   services: string[] | null;
   notes: string | null;
 };
@@ -102,45 +93,6 @@ export default async function ClientWorkspacePage({
 
   return (
     <>
-      <Link href="/admin/clients" className="back-link">
-        <ArrowLeft size={16} />
-        Back to clients
-      </Link>
-
-      <PageHeader
-        eyebrow="CLIENT WORKSPACE"
-        title={client.name}
-        description={
-          client.package_name ||
-          'Manage this client workspace.'
-        }
-      />
-
-      <div className="workspace-meta">
-        <Badge value={client.status} />
-
-        {client.contact_name && (
-          <span>
-            <Users size={16} />
-            {client.contact_name}
-          </span>
-        )}
-
-        {client.email && (
-          <span>
-            <Mail size={16} />
-            {client.email}
-          </span>
-        )}
-
-        {client.phone && (
-          <span>
-            <Phone size={16} />
-            {client.phone}
-          </span>
-        )}
-      </div>
-
       <section className="stat-grid">
         <Stat
           icon={<CalendarDays />}
@@ -167,33 +119,7 @@ export default async function ClientWorkspacePage({
         />
       </section>
 
-      <nav className="workspace-tabs">
-        <Link href={`/admin/clients/${client.id}`}>
-          Overview
-        </Link>
-
-        <Link href={`/admin/content?client=${client.id}`}>
-          Content
-        </Link>
-
-        <Link href={`/admin/calendar?client=${client.id}`}>
-          Calendar
-        </Link>
-
-        <Link href={`/admin/documents?client=${client.id}`}>
-          Documents
-        </Link>
-
-        <Link href={`/admin/invoices?client=${client.id}`}>
-          Invoices
-        </Link>
-
-        <Link href={`/requests?client=${client.id}`}>
-          Requests
-        </Link>
-      </nav>
-
-      <section className="two-col">
+      <section className="workspace-overview-grid">
         <div className="card">
           <p className="eyebrow">CLIENT DETAILS</p>
           <h2>Overview</h2>
@@ -245,7 +171,7 @@ export default async function ClientWorkspacePage({
         </div>
       </section>
 
-      <section className="two-col">
+      <section className="workspace-overview-grid">
         <div className="card">
           <div className="card-head">
             <div>
@@ -253,7 +179,7 @@ export default async function ClientWorkspacePage({
               <h2>Upcoming posts</h2>
             </div>
 
-            <Link href={`/admin/content?client=${client.id}`}>
+            <Link href={`/admin/clients/${id}/content`}>
               View all
             </Link>
           </div>
@@ -287,7 +213,7 @@ export default async function ClientWorkspacePage({
               <h2>Recent invoices</h2>
             </div>
 
-            <Link href={`/admin/invoices?client=${client.id}`}>
+            <Link href={`/admin/clients/${id}/invoices`}>
               View all
             </Link>
           </div>
