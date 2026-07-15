@@ -617,3 +617,73 @@
     justify-items: start;
   }
 }
+
+
+.request-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.request-card {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.request-card-top {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.request-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  color: var(--primary-dark);
+  background: var(--primary-light);
+  border-radius: 13px;
+}
+
+.request-heading {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.request-heading small,
+.request-footer {
+  color: var(--muted);
+}
+
+.request-details {
+  margin: 18px 0;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.request-footer {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.request-footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+@media (max-width: 600px) {
+  .request-card-top {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .request-card-top .badge {
+    grid-column: 1 / -1;
+    width: fit-content;
+  }
+}
