@@ -178,3 +178,75 @@ export async function createClientNoteAction(
     `/admin/clients/${clientId}`,
   );
 }
+
+export async function createContentAction(
+  formData: FormData,
+) {
+  await requireProfile(true);
+
+  const supabase = await createClient();
+
+  const clientId = String(
+    formData.get('client_id') || '',
+  );
+
+  const title = String(
+    formData.get('title') || '',
+  ).trim();
+
+  const contentType = String(
+    formData.get('content_type') || '',
+  ).trim();
+
+  const caption = String(
+    formData.get('caption') || '',
+  ).trim();
+
+  const previewUrl = String(
+    formData.get('preview_url') || '',
+  ).trim();
+
+  const scheduledFor = String(
+    formData.get('scheduled_for') || '',
+  ).trim();
+
+  const status = String(
+    formData.get('status') || 'draft',
+  );
+
+  if (!clientId || !title) {
+    throw new Error(
+      'Client and content title are required.',
+    );
+  }
+
+  const { error } = await supabase
+    .from('content_items')
+    .insert({
+      client_id: clientId,
+      title,
+      content_type: contentType || null,
+      caption: caption || null,
+      preview_url: previewUrl || null,
+      scheduled_for: scheduledFor || null,
+      status,
+    });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath(
+    `/admin/clients/${clientId}/content`,
+  );
+
+  revalidatePath(
+    `/admin/clients/${clientId}/calendar`,
+  );
+
+  revalidatePath(
+    `/admin/clients/${clientId}`,
+  );
+
+  revalidatePath('/dashboard');
+}
