@@ -356,3 +356,78 @@
     grid-template-columns: 1fr;
   }
 }
+
+.calendar-groups {
+  display: grid;
+  gap: 28px;
+  margin-top: 24px;
+}
+
+.calendar-group {
+  display: grid;
+  gap: 14px;
+}
+
+.calendar-month {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text);
+}
+
+.calendar-list {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+.calendar-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.calendar-row:last-child {
+  border-bottom: 0;
+}
+
+.calendar-date {
+  display: grid;
+  place-items: center;
+  min-height: 62px;
+  padding: 8px;
+  background: var(--primary-light);
+  border-radius: 14px;
+}
+
+.calendar-date strong {
+  font-size: 1.35rem;
+}
+
+.calendar-date span,
+.calendar-item-copy small {
+  color: var(--muted);
+}
+
+.calendar-item-copy {
+  display: grid;
+  gap: 4px;
+}
+
+@media (max-width: 650px) {
+  .calendar-row {
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .calendar-row .badge {
+    grid-column: 1 / -1;
+    width: fit-content;
+  }
+
+  .calendar-date {
+    min-height: 54px;
+  }
+}
