@@ -250,3 +250,199 @@ export async function createContentAction(
 
   revalidatePath('/dashboard');
 }
+
+export async function approveContentAction(
+  formData: FormData,
+) {
+  const profile = await requireProfile();
+  const supabase = await createClient();
+
+  const contentItemId = String(
+    formData.get('content_item_id') || '',
+  );
+
+  const clientId = String(
+    formData.get('client_id') || '',
+  );
+
+  if (!contentItemId || !clientId) {
+    throw new Error(
+      'Content item and client are required.',
+    );
+  }
+
+  if (
+    profile.role !== 'admin' &&
+    profile.client_id !== clientId
+  ) {
+    throw new Error(
+      'You do not have access to this content.',
+    );
+  }
+
+  const { error: updateError } = await supabase
+    .from('content_items')
+    .update({
+      status: 'approved',
+    })
+    .eq('id', contentItemId)
+    .eq('client_id', clientId);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  const { error: feedbackError } = await supabase
+    .from('content_feedback')
+    .insert({
+      content_item_id: contentItemId,
+      client_id: clientId,
+      author_id: profile.id,
+      message: 'Content approved.',
+      feedback_type: 'approval',
+    });
+
+  if (feedbackError) {
+    throw new Error(feedbackError.message);
+  }
+
+  revalidateContentPages(clientId, contentItemId);
+}
+
+export async function requestContentChangesAction(
+  formData: FormData,
+) {
+  const profile = await requireProfile();
+  const supabase = await createClient();
+
+  const contentItemId = String(
+    formData.get('content_item_id') || '',
+  );
+
+  const clientId = String(
+    formData.get('client_id') || '',
+  );
+
+  const message = String(
+    formData.get('message') || '',
+  ).trim();
+
+  if (!contentItemId || !clientId) {
+    throw new Error(
+      'Content item and client are required.',
+    );
+  }
+
+  if (!message) {
+    throw new Error(
+      'Please explain what should be changed.',
+    );
+  }
+
+  if (
+    profile.role !== 'admin' &&
+    profile.client_id !== clientId
+  ) {
+    throw new Error(
+      'You do not have access to this content.',
+    );
+  }
+
+  const { error: updateError } = await supabase
+    .from('content_items')
+    .update({
+      status: 'changes_requested',
+    })
+    .eq('id', contentItemId)
+    .eq('client_id', clientId);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  const { error: feedbackError } = await supabase
+    .from('content_feedback')
+    .insert({
+      content_item_id: contentItemId,
+      client_id: clientId,
+      author_id: profile.id,
+      message,
+      feedback_type: 'changes_requested',
+    });
+
+  if (feedbackError) {
+    throw new Error(feedbackError.message);
+  }
+
+  revalidateContentPages(clientId, contentItemId);
+}
+
+export async function addContentCommentAction(
+  formData: FormData,
+) {
+  const profile = await requireProfile();
+  const supabase = await createClient();
+
+  const contentItemId = String(
+    formData.get('content_item_id') || '',
+  );
+
+  const clientId = String(
+    formData.get('client_id') || '',
+  );
+
+  const message = String(
+    formData.get('message') || '',
+  ).trim();
+
+  if (!contentItemId || !clientId || !message) {
+    throw new Error(
+      'Content item, client and comment are required.',
+    );
+  }
+
+  if (
+    profile.role !== 'admin' &&
+    profile.client_id !== clientId
+  ) {
+    throw new Error(
+      'You do not have access to this content.',
+    );
+  }
+
+  const { error } = await supabase
+    .from('content_feedback')
+    .insert({
+      content_item_id: contentItemId,
+      client_id: clientId,
+      author_id: profile.id,
+      message,
+      feedback_type: 'comment',
+    });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidateContentPages(clientId, contentItemId);
+}
+
+function revalidateContentPages(
+  clientId: string,
+  contentItemId: string,
+) {
+  revalidatePath('/content');
+  revalidatePath('/dashboard');
+
+  revalidatePath(
+    `/admin/clients/${clientId}`,
+  );
+
+  revalidatePath(
+    `/admin/clients/${clientId}/content`,
+  );
+
+  revalidatePath(
+    `/admin/clients/${clientId}/content/${contentItemId}`,
+  );
+}
