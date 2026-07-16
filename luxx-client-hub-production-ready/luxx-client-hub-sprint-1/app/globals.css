@@ -1540,3 +1540,41 @@
     font-size: 0.9rem;
   }
 }
+
+.activity-feed{
+display:grid;
+gap:18px;
+margin-top:20px;
+}
+
+.activity-row{
+display:grid;
+grid-template-columns:48px 1fr;
+gap:15px;
+align-items:start;
+}
+
+.activity-icon{
+display:grid;
+place-items:center;
+width:46px;
+height:46px;
+border-radius:14px;
+background:var(--primary-light);
+color:var(--primary-dark);
+}
+
+.activity-body{
+display:grid;
+gap:5px;
+}
+
+.activity-body p{
+margin:0;
+color:var(--muted);
+line-height:1.5;
+}
+
+.activity-body small{
+color:var(--muted);
+}
