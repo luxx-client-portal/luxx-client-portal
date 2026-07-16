@@ -1,15 +1,14 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+
+import { logActivity } from '@/lib/activity';
+import { requireProfile } from '@/lib/auth';
 import {
   createNotifications,
   getAdminUserIds,
   getClientUserIds,
 } from '@/lib/notifications';
-
-import { revalidatePath } from 'next/cache';
-
-import { logActivity } from '@/lib/activity';
-import { requireProfile } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -18,7 +17,9 @@ function optionalText(value: FormDataEntryValue | null) {
   return text || null;
 }
 
-export async function createRequestAction(formData: FormData) {
+export async function createRequestAction(
+  formData: FormData,
+) {
   const profile = await requireProfile();
 
   if (!profile.client_id) {
@@ -27,19 +28,21 @@ export async function createRequestAction(formData: FormData) {
 
   const supabase = await createClient();
 
-  const { error } = await supabase.from('requests').insert({
-    client_id: profile.client_id,
-    created_by: profile.id,
-    request_type: String(
-      formData.get('request_type') || '',
-    ).trim(),
-    details: String(
-      formData.get('details') || '',
-    ).trim(),
-    preferred_deadline: optionalText(
-      formData.get('preferred_deadline'),
-    ),
-  });
+  const { error } = await supabase
+    .from('requests')
+    .insert({
+      client_id: profile.client_id,
+      created_by: profile.id,
+      request_type: String(
+        formData.get('request_type') || '',
+      ).trim(),
+      details: String(
+        formData.get('details') || '',
+      ).trim(),
+      preferred_deadline: optionalText(
+        formData.get('preferred_deadline'),
+      ),
+    });
 
   if (error) {
     throw new Error(error.message);
@@ -49,25 +52,32 @@ export async function createRequestAction(formData: FormData) {
   revalidatePath('/dashboard');
 }
 
-export async function createClientAction(formData: FormData) {
+export async function createClientAction(
+  formData: FormData,
+) {
   const profile = await requireProfile(true);
   const supabase = await createClient();
 
-  const name = String(formData.get('name') || '').trim();
+  const name = String(
+    formData.get('name') || '',
+  ).trim();
 
   if (!name) {
     throw new Error('Business name is required.');
   }
 
   const rawSlug =
-    String(formData.get('slug') || '').trim() || name;
+    String(formData.get('slug') || '').trim() ||
+    name;
 
   const slug = rawSlug
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
-  const services = String(formData.get('services') || '')
+  const services = String(
+    formData.get('services') || '',
+  )
     .split(',')
     .map((service) => service.trim())
     .filter(Boolean);
@@ -82,34 +92,41 @@ export async function createClientAction(formData: FormData) {
     ? Math.round(monthlyRetainerDollars * 100)
     : 0;
 
-  const { data: createdClient, error } = await supabase
-    .from('clients')
-    .insert({
-      name,
-      slug,
-      contact_name: optionalText(
-        formData.get('contact_name'),
-      ),
-      email: optionalText(formData.get('email')),
-      phone: optionalText(formData.get('phone')),
-      package_name: optionalText(
-        formData.get('package_name'),
-      ),
-      monthly_retainer: monthlyRetainerCents,
-      contract_start: optionalText(
-        formData.get('contract_start'),
-      ),
-      contract_end: optionalText(
-        formData.get('contract_end'),
-      ),
-      status: String(
-        formData.get('status') || 'active',
-      ),
-      services,
-      notes: optionalText(formData.get('notes')),
-    })
-    .select('id, name')
-    .single();
+  const { data: createdClient, error } =
+    await supabase
+      .from('clients')
+      .insert({
+        name,
+        slug,
+        contact_name: optionalText(
+          formData.get('contact_name'),
+        ),
+        email: optionalText(
+          formData.get('email'),
+        ),
+        phone: optionalText(
+          formData.get('phone'),
+        ),
+        package_name: optionalText(
+          formData.get('package_name'),
+        ),
+        monthly_retainer: monthlyRetainerCents,
+        contract_start: optionalText(
+          formData.get('contract_start'),
+        ),
+        contract_end: optionalText(
+          formData.get('contract_end'),
+        ),
+        status: String(
+          formData.get('status') || 'active',
+        ),
+        services,
+        notes: optionalText(
+          formData.get('notes'),
+        ),
+      })
+      .select('id, name')
+      .single();
 
   if (error || !createdClient) {
     throw new Error(
@@ -176,7 +193,9 @@ export async function createInvoiceAction(
     formData.get('amount') || 0,
   );
 
-  const amountCents = Number.isFinite(amountDollars)
+  const amountCents = Number.isFinite(
+    amountDollars,
+  )
     ? Math.round(amountDollars * 100)
     : 0;
 
@@ -246,7 +265,9 @@ export async function createClientNoteAction(
     `/admin/clients/${clientId}/notes`,
   );
 
-  revalidatePath(`/admin/clients/${clientId}`);
+  revalidatePath(
+    `/admin/clients/${clientId}`,
+  );
 }
 
 export async function createContentAction(
@@ -314,8 +335,90 @@ export async function createContentAction(
     `/admin/clients/${clientId}/calendar`,
   );
 
-  revalidatePath(`/admin/clients/${clientId}`);
+  revalidatePath(
+    `/admin/clients/${clientId}`,
+  );
+
   revalidatePath('/dashboard');
+}
+
+export async function notifyContentUploadedAction(
+  formData: FormData,
+) {
+  const profile = await requireProfile(true);
+  const supabase = await createClient();
+
+  const clientId = String(
+    formData.get('client_id') || '',
+  ).trim();
+
+  const contentItemId = String(
+    formData.get('content_item_id') || '',
+  ).trim();
+
+  const title = String(
+    formData.get('title') || 'New content',
+  ).trim();
+
+  if (!clientId || !contentItemId) {
+    throw new Error(
+      'Client and content item are required.',
+    );
+  }
+
+  const { data: contentItem, error } =
+    await supabase
+      .from('content_items')
+      .select('id, title, client_id')
+      .eq('id', contentItemId)
+      .eq('client_id', clientId)
+      .single();
+
+  if (error || !contentItem) {
+    throw new Error(
+      'Uploaded content could not be verified.',
+    );
+  }
+
+  await logActivity(supabase, {
+    clientId,
+    actorId: profile.id,
+    actionType: 'content_uploaded',
+    title: 'Content uploaded',
+    description: `${title} was added to the content workspace.`,
+    entityType: 'content_item',
+    entityId: contentItemId,
+  });
+
+  const recipientIds =
+    await getClientUserIds(clientId);
+
+  await createNotifications({
+    recipientIds: recipientIds.filter(
+      (recipientId) =>
+        recipientId !== profile.id,
+    ),
+    clientId,
+    notificationType: 'content_uploaded',
+    title: 'New content ready',
+    body: `${title} was added to your content workspace.`,
+    link: '/content',
+  });
+
+  revalidatePath('/dashboard');
+  revalidatePath('/content');
+
+  revalidatePath(
+    `/admin/clients/${clientId}`,
+  );
+
+  revalidatePath(
+    `/admin/clients/${clientId}/content`,
+  );
+
+  revalidatePath(
+    `/admin/clients/${clientId}/calendar`,
+  );
 }
 
 export async function approveContentAction(
@@ -347,33 +450,76 @@ export async function approveContentAction(
     );
   }
 
-  const { error: updateError } = await supabase
-    .from('content_items')
-    .update({
-      status: 'approved',
-    })
-    .eq('id', contentItemId)
-    .eq('client_id', clientId);
+  const { data: contentItem, error: itemError } =
+    await supabase
+      .from('content_items')
+      .select('id, title')
+      .eq('id', contentItemId)
+      .eq('client_id', clientId)
+      .single();
+
+  if (itemError || !contentItem) {
+    throw new Error(
+      'Content item could not be found.',
+    );
+  }
+
+  const { error: updateError } =
+    await supabase
+      .from('content_items')
+      .update({
+        status: 'approved',
+      })
+      .eq('id', contentItemId)
+      .eq('client_id', clientId);
 
   if (updateError) {
     throw new Error(updateError.message);
   }
 
-  const { error: feedbackError } = await supabase
-    .from('content_feedback')
-    .insert({
-      content_item_id: contentItemId,
-      client_id: clientId,
-      author_id: profile.id,
-      message: 'Content approved.',
-      feedback_type: 'approval',
-    });
+  const { error: feedbackError } =
+    await supabase
+      .from('content_feedback')
+      .insert({
+        content_item_id: contentItemId,
+        client_id: clientId,
+        author_id: profile.id,
+        message: 'Content approved.',
+        feedback_type: 'approval',
+      });
 
   if (feedbackError) {
     throw new Error(feedbackError.message);
   }
 
-  revalidateContentPages(clientId, contentItemId);
+  await logActivity(supabase, {
+    clientId,
+    actorId: profile.id,
+    actionType: 'content_approved',
+    title: 'Content approved',
+    description: `${contentItem.title} was approved.`,
+    entityType: 'content_item',
+    entityId: contentItemId,
+  });
+
+  const adminIds = await getAdminUserIds();
+
+  await createNotifications({
+    recipientIds: adminIds.filter(
+      (recipientId) =>
+        recipientId !== profile.id,
+    ),
+    clientId,
+    notificationType: 'content_approved',
+    title: 'Content approved',
+    body: `${contentItem.title} was approved by the client.`,
+    link: `/admin/clients/${clientId}/content`,
+  });
+
+  revalidateContentPages(
+    clientId,
+    contentItemId,
+  );
 }
 
 export async function requestContentChangesAction(
@@ -415,33 +561,80 @@ export async function requestContentChangesAction(
     );
   }
 
-  const { error: updateError } = await supabase
-    .from('content_items')
-    .update({
-      status: 'changes_requested',
-    })
-    .eq('id', contentItemId)
-    .eq('client_id', clientId);
+  const { data: contentItem, error: itemError } =
+    await supabase
+      .from('content_items')
+      .select('id, title')
+      .eq('id', contentItemId)
+      .eq('client_id', clientId)
+      .single();
+
+  if (itemError || !contentItem) {
+    throw new Error(
+      'Content item could not be found.',
+    );
+  }
+
+  const { error: updateError } =
+    await supabase
+      .from('content_items')
+      .update({
+        status: 'changes_requested',
+      })
+      .eq('id', contentItemId)
+      .eq('client_id', clientId);
 
   if (updateError) {
     throw new Error(updateError.message);
   }
 
-  const { error: feedbackError } = await supabase
-    .from('content_feedback')
-    .insert({
-      content_item_id: contentItemId,
-      client_id: clientId,
-      author_id: profile.id,
-      message,
-      feedback_type: 'changes_requested',
-    });
+  const { error: feedbackError } =
+    await supabase
+      .from('content_feedback')
+      .insert({
+        content_item_id: contentItemId,
+        client_id: clientId,
+        author_id: profile.id,
+        message,
+        feedback_type: 'changes_requested',
+      });
 
   if (feedbackError) {
     throw new Error(feedbackError.message);
   }
 
-  revalidateContentPages(clientId, contentItemId);
+  await logActivity(supabase, {
+    clientId,
+    actorId: profile.id,
+    actionType: 'content_changes_requested',
+    title: 'Changes requested',
+    description: `Changes were requested for ${contentItem.title}.`,
+    entityType: 'content_item',
+    entityId: contentItemId,
+    metadata: {
+      feedback: message,
+    },
+  });
+
+  const adminIds = await getAdminUserIds();
+
+  await createNotifications({
+    recipientIds: adminIds.filter(
+      (recipientId) =>
+        recipientId !== profile.id,
+    ),
+    clientId,
+    notificationType:
+      'content_changes_requested',
+    title: 'Changes requested',
+    body: `${contentItem.title}: ${message}`,
+    link: `/admin/clients/${clientId}/content`,
+  });
+
+  revalidateContentPages(
+    clientId,
+    contentItemId,
+  );
 }
 
 export async function addContentCommentAction(
@@ -477,6 +670,20 @@ export async function addContentCommentAction(
     );
   }
 
+  const { data: contentItem, error: itemError } =
+    await supabase
+      .from('content_items')
+      .select('id, title')
+      .eq('id', contentItemId)
+      .eq('client_id', clientId)
+      .single();
+
+  if (itemError || !contentItem) {
+    throw new Error(
+      'Content item could not be found.',
+    );
+  }
+
   const { error } = await supabase
     .from('content_feedback')
     .insert({
@@ -491,7 +698,40 @@ export async function addContentCommentAction(
     throw new Error(error.message);
   }
 
-  revalidateContentPages(clientId, contentItemId);
+  await logActivity(supabase, {
+    clientId,
+    actorId: profile.id,
+    actionType: 'comment_added',
+    title: 'Content comment added',
+    description: `A comment was added to ${contentItem.title}.`,
+    entityType: 'content_item',
+    entityId: contentItemId,
+  });
+
+  const recipientIds =
+    profile.role === 'admin'
+      ? await getClientUserIds(clientId)
+      : await getAdminUserIds();
+
+  await createNotifications({
+    recipientIds: recipientIds.filter(
+      (recipientId) =>
+        recipientId !== profile.id,
+    ),
+    clientId,
+    notificationType: 'content_comment',
+    title: 'New content comment',
+    body: `${contentItem.title}: ${message}`,
+    link:
+      profile.role === 'admin'
+        ? '/content'
+        : `/admin/clients/${clientId}/content`,
+  });
+
+  revalidateContentPages(
+    clientId,
+    contentItemId,
+  );
 }
 
 function revalidateContentPages(
@@ -501,7 +741,9 @@ function revalidateContentPages(
   revalidatePath('/content');
   revalidatePath('/dashboard');
 
-  revalidatePath(`/admin/clients/${clientId}`);
+  revalidatePath(
+    `/admin/clients/${clientId}`,
+  );
 
   revalidatePath(
     `/admin/clients/${clientId}/content`,
@@ -515,7 +757,7 @@ function revalidateContentPages(
 export async function inviteClientUserAction(
   formData: FormData,
 ) {
-  await requireProfile(true);
+  const profile = await requireProfile(true);
 
   const clientId = String(
     formData.get('client_id') || '',
@@ -538,7 +780,8 @@ export async function inviteClientUserAction(
   }
 
   const supabase = await createClient();
-  const adminSupabase = createAdminClient();
+  const adminSupabase =
+    createAdminClient();
 
   const { data: client, error: clientError } =
     await supabase
@@ -565,7 +808,10 @@ export async function inviteClientUserAction(
     );
   }
 
-  const { data: invitation, error: inviteError } =
+  const {
+    data: invitation,
+    error: inviteError,
+  } =
     await adminSupabase.auth.admin.inviteUserByEmail(
       email,
       {
@@ -588,23 +834,40 @@ export async function inviteClientUserAction(
     );
   }
 
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({
-      client_id: clientId,
-      role: 'client',
-      full_name: fullName || email,
-    })
-    .eq('id', invitation.user.id);
+  const { error: profileError } =
+    await adminSupabase
+      .from('profiles')
+      .update({
+        client_id: clientId,
+        role: 'client',
+        full_name: fullName || email,
+      })
+      .eq('id', invitation.user.id);
 
   if (profileError) {
     throw new Error(profileError.message);
   }
 
-  revalidatePath(`/admin/clients/${clientId}`);
+  await logActivity(supabase, {
+    clientId,
+    actorId: profile.id,
+    actionType: 'client_invited',
+    title: 'Client user invited',
+    description: `${fullName || email} was invited to ${client.name}.`,
+    entityType: 'profile',
+    entityId: invitation.user.id,
+    metadata: {
+      email,
+    },
+  });
+
+  revalidatePath(
+    `/admin/clients/${clientId}`,
+  );
 
   revalidatePath(
     `/admin/clients/${clientId}/settings`,
   );
+
+  revalidatePath('/dashboard');
 }
- 
