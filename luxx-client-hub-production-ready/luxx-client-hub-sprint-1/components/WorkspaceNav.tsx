@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { LucideIcon } from 'lucide-react';
 import {
   BarChart3,
   CalendarDays,
@@ -14,17 +15,27 @@ import {
   StickyNote,
 } from 'lucide-react';
 
-type WorkspaceNavProps = {
-  clientId: string;
+type WorkspaceLink = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  exact?: boolean;
+};
+
+type WorkspaceSection = {
+  label: string;
+  links: WorkspaceLink[];
 };
 
 export function WorkspaceNav({
   clientId,
-}: WorkspaceNavProps) {
+}: {
+  clientId: string;
+}) {
   const pathname = usePathname();
   const base = `/admin/clients/${clientId}`;
 
-  const sections = [
+  const sections: WorkspaceSection[] = [
     {
       label: 'Workspace',
       links: [
