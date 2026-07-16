@@ -1,15 +1,15 @@
 import Link from 'next/link';
 import {
-  LayoutDashboard,
-  Users,
+  BarChart3,
+  CalendarCheck2,
   CalendarDays,
   Files,
-  ReceiptText,
-  MessageSquarePlus,
-  BarChart3,
-  Settings,
-  FileText,
+  LayoutDashboard,
   LogOut,
+  MessageSquarePlus,
+  ReceiptText,
+  Settings,
+  Users,
 } from 'lucide-react';
 
 import { logoutAction } from '@/lib/actions/auth';
@@ -28,7 +28,7 @@ const adminNav = [
   ['/dashboard', 'Dashboard', LayoutDashboard],
   ['/admin/clients', 'Clients', Users],
   ['/admin/calendar', 'Calendar', CalendarDays],
-  ['/admin/content', 'Content', FileText],
+  ['/admin/approvals', 'Approvals', CalendarCheck2],
   ['/requests', 'Requests', MessageSquarePlus],
   ['/admin/invoices', 'Invoices', ReceiptText],
   ['/admin/documents', 'Documents', Files],
@@ -36,13 +36,22 @@ const adminNav = [
   ['/settings', 'Settings', Settings],
 ] as const;
 
-export function Sidebar({ profile }: { profile: Profile }) {
+export function Sidebar({
+  profile,
+}: {
+  profile: Profile;
+}) {
   const navigation =
-    profile.role === 'admin' ? adminNav : clientNav;
+    profile.role === 'admin'
+      ? adminNav
+      : clientNav;
 
   return (
     <aside className="sidebar">
-      <Link href="/dashboard" className="logo">
+      <Link
+        href="/dashboard"
+        className="logo"
+      >
         <span>L</span>
 
         <div>
@@ -53,34 +62,51 @@ export function Sidebar({ profile }: { profile: Profile }) {
 
       <nav>
         <p className="nav-label">
-          {profile.role === 'admin' ? 'LUXX OS' : 'WORKSPACE'}
+          {profile.role === 'admin'
+            ? 'LUXX OS'
+            : 'WORKSPACE'}
         </p>
 
-        {navigation.map(([href, label, Icon]) => (
-          <Link key={href} href={href}>
-            <Icon size={18} />
-            {label}
-          </Link>
-        ))}
+        {navigation.map(
+          ([href, label, Icon]) => (
+            <Link
+              key={href}
+              href={href}
+            >
+              <Icon size={18} />
+              <span>{label}</span>
+            </Link>
+          ),
+        )}
       </nav>
 
       <div className="sidebar-bottom">
         <div className="avatar">
-          {(profile.full_name || 'L').slice(0, 1)}
+          {(profile.full_name || 'L')
+            .slice(0, 1)
+            .toUpperCase()}
         </div>
 
         <div>
-          <strong>{profile.full_name || 'Luxx User'}</strong>
+          <strong>
+            {profile.full_name ||
+              'Luxx User'}
+          </strong>
 
           <small>
             {profile.role === 'admin'
               ? 'Luxx Team'
-              : profile.clients?.name || 'Client'}
+              : profile.clients?.name ||
+                'Client'}
           </small>
         </div>
 
         <form action={logoutAction}>
-          <button title="Sign out">
+          <button
+            type="submit"
+            title="Sign out"
+            aria-label="Sign out"
+          >
             <LogOut size={17} />
           </button>
         </form>
