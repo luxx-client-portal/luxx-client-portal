@@ -1,4 +1,5 @@
-import NotificationBell from './NotificationBell';
+import Link from 'next/link';
+import { Bell } from 'lucide-react';
 
 import { requireProfile } from '@/lib/auth';
 
@@ -10,7 +11,13 @@ export default async function TopBar() {
       <div className="topbar-spacer" />
 
       <div className="topbar-actions">
-        <NotificationBell />
+        <Link
+          href="/notifications"
+          className="notification-button"
+          aria-label="View notifications"
+        >
+          <Bell size={20} />
+        </Link>
 
         <div className="topbar-avatar">
           {(profile.full_name || 'L')
