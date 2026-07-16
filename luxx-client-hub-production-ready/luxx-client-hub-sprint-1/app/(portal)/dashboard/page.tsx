@@ -28,6 +28,10 @@ type Client = {
   created_at: string;
 };
 
+type AdminContentItem = ContentItem & {
+  client_id: string;
+};
+
 type Activity = {
   id: string;
   action_type: string;
@@ -133,10 +137,18 @@ async function AdminDashboard({
   }
 
   const clients = (clientsResult.data || []) as Client[];
-  const content = (contentResult.data || []) as ContentItem[];
-  const invoices = (invoicesResult.data || []) as Invoice[];
-  const requests = (requestsResult.data || []) as ClientRequest[];
-  const activities = (activityResult.data || []) as Activity[];
+
+  const content =
+    (contentResult.data || []) as AdminContentItem[];
+
+  const invoices =
+    (invoicesResult.data || []) as Invoice[];
+
+  const requests =
+    (requestsResult.data || []) as ClientRequest[];
+
+  const activities =
+    (activityResult.data || []) as Activity[];
 
   const activeClients = clients.filter(
     (client) =>
@@ -246,7 +258,7 @@ async function AdminDashboard({
               <h2>Needs attention</h2>
             </div>
 
-            <Link href="/content">
+            <Link href="/admin/approvals">
               View all
             </Link>
           </div>
@@ -257,7 +269,7 @@ async function AdminDashboard({
               .map((item) => (
                 <Link
                   className="list-row"
-                  href={`/content#${item.id}`}
+                  href={`/admin/clients/${item.client_id}/content#${item.id}`}
                   key={item.id}
                 >
                   <div>
@@ -330,7 +342,7 @@ async function AdminDashboard({
               <h2>Outstanding invoices</h2>
             </div>
 
-            <Link href="/invoices">
+            <Link href="/admin/invoices">
               View all
             </Link>
           </div>
