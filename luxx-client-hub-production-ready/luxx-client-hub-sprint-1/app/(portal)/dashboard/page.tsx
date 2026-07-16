@@ -1,28 +1,38 @@
 import Link from 'next/link';
 import {
+  Building2,
   CalendarCheck2,
   FileText,
-  Receipt,
   MessageSquare,
+  Receipt,
   Users,
-  Building2,
 } from 'lucide-react';
 
+import { ActivityFeed } from '@/components/ActivityFeed';
+import { Badge, Empty, PageHeader } from '@/components/UI';
 import { requireProfile } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
-import { PageHeader, Badge, Empty } from '@/components/UI';
 import { dateLabel, money } from '@/lib/utils';
 
 import type {
+  ClientRequest,
   ContentItem,
   Invoice,
-  ClientRequest,
 } from '@/lib/types';
 
 type Client = {
   id: string;
   name: string;
   slug: string;
+  status?: string | null;
+  created_at: string;
+};
+
+type Activity = {
+  id: string;
+  action_type: string;
+  title: string;
+  description: string | null;
   created_at: string;
 };
 
@@ -31,10 +41,20 @@ export default async function Dashboard() {
   const supabase = await createClient();
 
   if (profile.role === 'admin') {
-    return <AdminDashboard profile={profile} supabase={supabase} />;
+    return (
+      <AdminDashboard
+        profile={profile}
+        supabase={supabase}
+      />
+    );
   }
 
-  return <ClientDashboard profile={profile} supabase={supabase} />;
+  return (
+    <ClientDashboard
+      profile={profile}
+      supabase={supabase}
+    />
+  );
 }
 
 async function AdminDashboard({
@@ -44,33 +64,86 @@ async function AdminDashboard({
   profile: Awaited<ReturnType<typeof requireProfile>>;
   supabase: Awaited<ReturnType<typeof createClient>>;
 }) {
-  const [clientsResult, contentResult, invoicesResult, requestsResult] =
-    await Promise.all([
-      supabase
-        .from('clients')
-        .select('*')
-        .order('name', { ascending: true }),
+  const [
+    clientsResult,
+    contentResult,
+    invoicesResult,
+    requestsResult,
+    activityResult,
+  ] = await Promise.all([
+    supabase
+      .from('clients')
+      .select('*')
+      .order('name', { ascending: true }),
 
-      supabase
-        .from('content_items')
-        .select('*')
-        .order('scheduled_for', { ascending: true }),
+    supabase
+      .from('content_items')
+      .select('*')
+      .order('scheduled_for', {
+        ascending: true,
+        nullsFirst: false,
+      }),
 
-      supabase
-        .from('invoices')
-        .select('*')
-        .order('due_date', { ascending: true }),
+    supabase
+      .from('invoices')
+      .select('*')
+      .order('due_date', {
+        ascending: true,
+        nullsFirst: false,
+      }),
 
-      supabase
-        .from('requests')
-        .select('*')
-        .order('created_at', { ascending: false }),
-    ]);
+    supabase
+      .from('requests')
+      .select('*')
+      .order('created_at', { ascending: false }),
+
+    supabase
+      .from('activity_log')
+      .select(
+        `
+          id,
+          action_type,
+          title,
+          description,
+          created_at
+        `,
+      )
+      .order('created_at', { ascending: false })
+      .limit(12),
+  ]);
+
+  if (clientsResult.error) {
+    throw new Error(clientsResult.error.message);
+  }
+
+  if (contentResult.error) {
+    throw new Error(contentResult.error.message);
+  }
+
+  if (invoicesResult.error) {
+    throw new Error(invoicesResult.error.message);
+  }
+
+  if (requestsResult.error) {
+    throw new Error(requestsResult.error.message);
+  }
+
+  if (activityResult.error) {
+    throw new Error(activityResult.error.message);
+  }
 
   const clients = (clientsResult.data || []) as Client[];
   const content = (contentResult.data || []) as ContentItem[];
   const invoices = (invoicesResult.data || []) as Invoice[];
   const requests = (requestsResult.data || []) as ClientRequest[];
+  const activities = (activityResult.data || []) as Activity[];
+
+  const activeClients = clients.filter(
+    (client) =>
+      !client.status ||
+      client.status === 'active' ||
+      client.status === 'onboarding',
+  );
 
   const pendingApprovals = content.filter(
     (item) =>
@@ -101,7 +174,7 @@ async function AdminDashboard({
         <Stat
           icon={<Users />}
           label="Active clients"
-          value={String(clients.length)}
+          value={String(activeClients.length)}
         />
 
         <Stat
@@ -130,24 +203,33 @@ async function AdminDashboard({
               <p className="eyebrow">CLIENT MANAGEMENT</p>
               <h2>Your clients</h2>
             </div>
+
+            <Link href="/admin/clients">
+              View all
+            </Link>
           </div>
 
           {clients.length ? (
-            clients.map((client) => (
-              <div className="list-row" key={client.id}>
+            clients.slice(0, 6).map((client) => (
+              <Link
+                className="list-row"
+                href={`/admin/clients/${client.id}`}
+                key={client.id}
+              >
                 <div className="stat-icon">
-                  <Building2 />
+                  <Building2 size={18} />
                 </div>
 
                 <div style={{ flex: 1 }}>
                   <strong>{client.name}</strong>
+
                   <small>
                     Added {dateLabel(client.created_at)}
                   </small>
                 </div>
 
-                <Badge value="active" />
-              </div>
+                <Badge value={client.status || 'active'} />
+              </Link>
             ))
           ) : (
             <Empty
@@ -164,27 +246,32 @@ async function AdminDashboard({
               <h2>Needs attention</h2>
             </div>
 
-            <Link href="/content">View all</Link>
+            <Link href="/content">
+              View all
+            </Link>
           </div>
 
           {pendingApprovals.length ? (
-            pendingApprovals.slice(0, 5).map((item) => (
-              <Link
-                className="list-row"
-                href={`/content#${item.id}`}
-                key={item.id}
-              >
-                <div>
-                  <strong>{item.title}</strong>
-                  <small>
-                    {dateLabel(item.scheduled_for)} ·{' '}
-                    {item.content_type || 'Post'}
-                  </small>
-                </div>
+            pendingApprovals
+              .slice(0, 5)
+              .map((item) => (
+                <Link
+                  className="list-row"
+                  href={`/content#${item.id}`}
+                  key={item.id}
+                >
+                  <div>
+                    <strong>{item.title}</strong>
 
-                <Badge value={item.status} />
-              </Link>
-            ))
+                    <small>
+                      {dateLabel(item.scheduled_for)} ·{' '}
+                      {item.content_type || 'Post'}
+                    </small>
+                  </div>
+
+                  <Badge value={item.status} />
+                </Link>
+              ))
           ) : (
             <Empty
               title="Nothing waiting"
@@ -202,20 +289,32 @@ async function AdminDashboard({
               <h2>Recent requests</h2>
             </div>
 
-            <Link href="/requests">View all</Link>
+            <Link href="/requests">
+              View all
+            </Link>
           </div>
 
           {openRequests.length ? (
-            openRequests.slice(0, 5).map((request) => (
-              <div className="list-row" key={request.id}>
-                <div>
-                  <strong>{request.request_type}</strong>
-                  <small>{request.details}</small>
-                </div>
+            openRequests
+              .slice(0, 5)
+              .map((request) => (
+                <div
+                  className="list-row"
+                  key={request.id}
+                >
+                  <div>
+                    <strong>
+                      {request.request_type}
+                    </strong>
 
-                <Badge value={request.status} />
-              </div>
-            ))
+                    <small>
+                      {request.details}
+                    </small>
+                  </div>
+
+                  <Badge value={request.status} />
+                </div>
+              ))
           ) : (
             <Empty
               title="No open requests"
@@ -231,27 +330,39 @@ async function AdminDashboard({
               <h2>Outstanding invoices</h2>
             </div>
 
-            <Link href="/invoices">View all</Link>
+            <Link href="/invoices">
+              View all
+            </Link>
           </div>
 
           {openInvoices.length ? (
-            openInvoices.slice(0, 5).map((invoice) => (
-              <div className="list-row" key={invoice.id}>
-                <div>
-                  <strong>
-                    {invoice.invoice_number || 'Invoice'}
-                  </strong>
-                  <small>
-                    Due {dateLabel(invoice.due_date)}
-                  </small>
-                </div>
+            openInvoices
+              .slice(0, 5)
+              .map((invoice) => (
+                <div
+                  className="list-row"
+                  key={invoice.id}
+                >
+                  <div>
+                    <strong>
+                      {invoice.invoice_number ||
+                        'Invoice'}
+                    </strong>
 
-                <div className="align-right">
-                  <strong>{money(invoice.amount_cents)}</strong>
-                  <Badge value={invoice.status} />
+                    <small>
+                      Due {dateLabel(invoice.due_date)}
+                    </small>
+                  </div>
+
+                  <div className="align-right">
+                    <strong>
+                      {money(invoice.amount_cents)}
+                    </strong>
+
+                    <Badge value={invoice.status} />
+                  </div>
                 </div>
-              </div>
-            ))
+              ))
           ) : (
             <Empty
               title="No outstanding invoices"
@@ -259,6 +370,10 @@ async function AdminDashboard({
             />
           )}
         </div>
+      </section>
+
+      <section className="dashboard-activity-section">
+        <ActivityFeed activities={activities} />
       </section>
     </>
   );
@@ -271,34 +386,68 @@ async function ClientDashboard({
   profile: Awaited<ReturnType<typeof requireProfile>>;
   supabase: Awaited<ReturnType<typeof createClient>>;
 }) {
-  const [contentResult, documentsResult, invoicesResult, requestsResult] =
-    await Promise.all([
-      supabase
-        .from('content_items')
-        .select('*')
-        .order('scheduled_for', { ascending: true })
-        .limit(5),
+  const [
+    contentResult,
+    documentsResult,
+    invoicesResult,
+    requestsResult,
+  ] = await Promise.all([
+    supabase
+      .from('content_items')
+      .select('*')
+      .order('scheduled_for', {
+        ascending: true,
+        nullsFirst: false,
+      })
+      .limit(5),
 
-      supabase
-        .from('documents')
-        .select('id', { count: 'exact', head: true }),
+    supabase
+      .from('documents')
+      .select('id', {
+        count: 'exact',
+        head: true,
+      }),
 
-      supabase
-        .from('invoices')
-        .select('*')
-        .order('due_date', { ascending: false })
-        .limit(3),
+    supabase
+      .from('invoices')
+      .select('*')
+      .order('due_date', {
+        ascending: false,
+        nullsFirst: false,
+      })
+      .limit(3),
 
-      supabase
-        .from('requests')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(3),
-    ]);
+    supabase
+      .from('requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(3),
+  ]);
 
-  const content = (contentResult.data || []) as ContentItem[];
-  const invoices = (invoicesResult.data || []) as Invoice[];
-  const requests = (requestsResult.data || []) as ClientRequest[];
+  if (contentResult.error) {
+    throw new Error(contentResult.error.message);
+  }
+
+  if (documentsResult.error) {
+    throw new Error(documentsResult.error.message);
+  }
+
+  if (invoicesResult.error) {
+    throw new Error(invoicesResult.error.message);
+  }
+
+  if (requestsResult.error) {
+    throw new Error(requestsResult.error.message);
+  }
+
+  const content =
+    (contentResult.data || []) as ContentItem[];
+
+  const invoices =
+    (invoicesResult.data || []) as Invoice[];
+
+  const requests =
+    (requestsResult.data || []) as ClientRequest[];
 
   const pendingApprovals = content.filter(
     (item) =>
@@ -347,7 +496,8 @@ async function ClientDashboard({
           label="Open requests"
           value={String(
             requests.filter(
-              (request) => request.status === 'open',
+              (request) =>
+                request.status === 'open',
             ).length,
           )}
         />
@@ -361,7 +511,9 @@ async function ClientDashboard({
               <h2>Content calendar</h2>
             </div>
 
-            <Link href="/content">View all</Link>
+            <Link href="/content">
+              View all
+            </Link>
           </div>
 
           {content.length ? (
@@ -373,6 +525,7 @@ async function ClientDashboard({
               >
                 <div>
                   <strong>{item.title}</strong>
+
                   <small>
                     {dateLabel(item.scheduled_for)} ·{' '}
                     {item.content_type || 'Post'}
@@ -397,23 +550,33 @@ async function ClientDashboard({
               <h2>Recent invoices</h2>
             </div>
 
-            <Link href="/invoices">View all</Link>
+            <Link href="/invoices">
+              View all
+            </Link>
           </div>
 
           {invoices.length ? (
             invoices.map((invoice) => (
-              <div className="list-row" key={invoice.id}>
+              <div
+                className="list-row"
+                key={invoice.id}
+              >
                 <div>
                   <strong>
-                    {invoice.invoice_number || 'Invoice'}
+                    {invoice.invoice_number ||
+                      'Invoice'}
                   </strong>
+
                   <small>
                     Due {dateLabel(invoice.due_date)}
                   </small>
                 </div>
 
                 <div className="align-right">
-                  <strong>{money(invoice.amount_cents)}</strong>
+                  <strong>
+                    {money(invoice.amount_cents)}
+                  </strong>
+
                   <Badge value={invoice.status} />
                 </div>
               </div>
@@ -441,7 +604,9 @@ function Stat({
 }) {
   return (
     <div className="stat">
-      <div className="stat-icon">{icon}</div>
+      <div className="stat-icon">
+        {icon}
+      </div>
 
       <div>
         <strong>{value}</strong>
