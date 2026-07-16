@@ -2,23 +2,15 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   ArrowLeft,
-  BarChart3,
-  CalendarDays,
-  FileText,
-  FolderOpen,
-  LayoutDashboard,
   Mail,
-  MessageSquare,
   Phone,
-  ReceiptText,
-  Settings,
-  StickyNote,
   Users,
 } from 'lucide-react';
 
 import { requireProfile } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { Badge, PageHeader } from '@/components/UI';
+import { WorkspaceNav } from '@/components/WorkspaceNav';
 
 type ClientRecord = {
   id: string;
@@ -45,7 +37,7 @@ export default async function ClientWorkspaceLayout({
   const { data, error } = await supabase
     .from('clients')
     .select(
-      'id, name, contact_name, email, phone, package_name, status'
+      'id, name, contact_name, email, phone, package_name, status',
     )
     .eq('id', id)
     .single();
@@ -55,32 +47,23 @@ export default async function ClientWorkspaceLayout({
   }
 
   const client = data as ClientRecord;
-  const base = `/admin/clients/${client.id}`;
-
-  const tabs = [
-    [base, 'Overview', LayoutDashboard],
-    [`${base}/content`, 'Content', FileText],
-    [`${base}/calendar`, 'Calendar', CalendarDays],
-    [`${base}/documents`, 'Documents', FolderOpen],
-    [`${base}/invoices`, 'Invoices', ReceiptText],
-    [`${base}/requests`, 'Requests', MessageSquare],
-    [`${base}/notes`, 'Notes', StickyNote],
-    [`${base}/analytics`, 'Analytics', BarChart3],
-    [`${base}/settings`, 'Settings', Settings],
-  ] as const;
 
   return (
     <>
-      <Link href="/admin/clients" className="back-link">
+      <Link
+        href="/admin/clients"
+        className="back-link"
+      >
         <ArrowLeft size={16} />
-        Back to Clients
+        Back to clients
       </Link>
 
       <PageHeader
         eyebrow="CLIENT WORKSPACE"
         title={client.name}
         description={
-          client.package_name || 'Manage this client workspace.'
+          client.package_name ||
+          'Manage this client workspace.'
         }
       />
 
@@ -109,18 +92,13 @@ export default async function ClientWorkspaceLayout({
         )}
       </div>
 
-      <nav className="workspace-tabs">
-        {tabs.map(([href, label, Icon]) => (
-          <Link key={href} href={href}>
-            <Icon size={16} />
-            <span>{label}</span>
-          </Link>
-        ))}
-      </nav>
+      <div className="workspace-shell">
+        <WorkspaceNav clientId={client.id} />
 
-      <main className="workspace-content">
-        {children}
-      </main>
+        <main className="workspace-main">
+          {children}
+        </main>
+      </div>
     </>
   );
 }
