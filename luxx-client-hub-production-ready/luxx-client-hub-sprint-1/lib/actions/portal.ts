@@ -1,5 +1,6 @@
 'use server';
 
+import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 
 import { requireProfile } from '@/lib/auth';
@@ -445,4 +446,92 @@ function revalidateContentPages(
   revalidatePath(
     `/admin/clients/${clientId}/content/${contentItemId}`,
   );
+}
+
+export async function inviteClientUserAction(
+  formData: FormData,
+) {
+  await requireProfile(true);
+
+  const clientId = String(
+    formData.get('client_id') || '',
+  ).trim();
+
+  const email = String(
+    formData.get('email') || '',
+  )
+    .trim()
+    .toLowerCase();
+
+  const fullName = String(
+    formData.get('full_name') || '',
+  ).trim();
+
+  if (!clientId || !email) {
+    throw new Error(
+      'Client workspace and email are required.',
+    );
+  }
+
+  const supabase = await createClient();
+  const adminSupabase = createAdminClient();
+
+  const { data: client, error: clientError } =
+    await supabase
+      .from('clients')
+      .select('id, name')
+      .eq('id', clientId)
+      .single();
+
+  if (clientError || !client) {
+    throw new Error('Client workspace not found.');
+  }
+
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
+
+  if (!appUrl) {
+    throw new Error(
+      'NEXT_PUBLIC_APP_URL is not configured.',
+    );
+  }
+
+  const { data: invitation, error: inviteError } =
+    await adminSupabase.auth.admin.inviteUserByEmail(
+      email,
+      {
+        redirectTo: `${appUrl}/auth/callback?next=/update-password`,
+        data: {
+          full_name: fullName || email,
+          client_id: clientId,
+          role: 'client',
+        },
+      },
+    );
+
+  if (inviteError) {
+    throw new Error(inviteError.message);
+  }
+
+  if (!invitation.user) {
+    throw new Error(
+      'Supabase did not return the invited user.',
+    );
+  }
+
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({
+      client_id: clientId,
+      role: 'client',
+      full_name: fullName || email,
+    })
+    .eq('id', invitation.user.id);
+
+  if (profileError) {
+    throw new Error(profileError.message);
+  }
+
+  revalidatePath(`/admin/clients/${clientId}`);
+  revalidatePath(`/admin/clients/${clientId}/settings`);
 }
