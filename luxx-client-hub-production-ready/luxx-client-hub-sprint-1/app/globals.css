@@ -1578,3 +1578,7 @@ line-height:1.5;
 .activity-body small{
 color:var(--muted);
 }
+
+.dashboard-activity-section {
+  margin-top: 24px;
+}
