@@ -1,9 +1,10 @@
 'use server';
 
-import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 
+import { logActivity } from '@/lib/activity';
 import { requireProfile } from '@/lib/auth';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 function optionalText(value: FormDataEntryValue | null) {
@@ -23,8 +24,12 @@ export async function createRequestAction(formData: FormData) {
   const { error } = await supabase.from('requests').insert({
     client_id: profile.client_id,
     created_by: profile.id,
-    request_type: String(formData.get('request_type') || '').trim(),
-    details: String(formData.get('details') || '').trim(),
+    request_type: String(
+      formData.get('request_type') || '',
+    ).trim(),
+    details: String(
+      formData.get('details') || '',
+    ).trim(),
     preferred_deadline: optionalText(
       formData.get('preferred_deadline'),
     ),
@@ -39,11 +44,14 @@ export async function createRequestAction(formData: FormData) {
 }
 
 export async function createClientAction(formData: FormData) {
-  await requireProfile(true);
-
+  const profile = await requireProfile(true);
   const supabase = await createClient();
 
   const name = String(formData.get('name') || '').trim();
+
+  if (!name) {
+    throw new Error('Business name is required.');
+  }
 
   const rawSlug =
     String(formData.get('slug') || '').trim() || name;
@@ -68,40 +76,79 @@ export async function createClientAction(formData: FormData) {
     ? Math.round(monthlyRetainerDollars * 100)
     : 0;
 
-  const { error } = await supabase.from('clients').insert({
-    name,
-    slug,
-    contact_name: optionalText(formData.get('contact_name')),
-    email: optionalText(formData.get('email')),
-    phone: optionalText(formData.get('phone')),
-    package_name: optionalText(formData.get('package_name')),
-    monthly_retainer: monthlyRetainerCents,
-    contract_start: optionalText(formData.get('contract_start')),
-    contract_end: optionalText(formData.get('contract_end')),
-    status: String(formData.get('status') || 'active'),
-    services,
-    notes: optionalText(formData.get('notes')),
-  });
+  const { data: createdClient, error } = await supabase
+    .from('clients')
+    .insert({
+      name,
+      slug,
+      contact_name: optionalText(
+        formData.get('contact_name'),
+      ),
+      email: optionalText(formData.get('email')),
+      phone: optionalText(formData.get('phone')),
+      package_name: optionalText(
+        formData.get('package_name'),
+      ),
+      monthly_retainer: monthlyRetainerCents,
+      contract_start: optionalText(
+        formData.get('contract_start'),
+      ),
+      contract_end: optionalText(
+        formData.get('contract_end'),
+      ),
+      status: String(
+        formData.get('status') || 'active',
+      ),
+      services,
+      notes: optionalText(formData.get('notes')),
+    })
+    .select('id, name')
+    .single();
 
-  if (error) {
-    throw new Error(error.message);
+  if (error || !createdClient) {
+    throw new Error(
+      error?.message ||
+        'Unable to create client workspace.',
+    );
   }
+
+  await logActivity(supabase, {
+    clientId: createdClient.id,
+    actorId: profile.id,
+    actionType: 'client_created',
+    title: 'Client workspace created',
+    description: `${createdClient.name} was added to Luxx Client Hub.`,
+    entityType: 'client',
+    entityId: createdClient.id,
+  });
 
   revalidatePath('/admin/clients');
   revalidatePath('/dashboard');
 }
 
-export async function createDocumentAction(formData: FormData) {
+export async function createDocumentAction(
+  formData: FormData,
+) {
   await requireProfile(true);
 
   const supabase = await createClient();
 
-  const { error } = await supabase.from('documents').insert({
-    client_id: String(formData.get('client_id') || ''),
-    name: String(formData.get('name') || '').trim(),
-    category: String(formData.get('category') || '').trim(),
-    file_path: String(formData.get('file_path') || '').trim(),
-  });
+  const { error } = await supabase
+    .from('documents')
+    .insert({
+      client_id: String(
+        formData.get('client_id') || '',
+      ),
+      name: String(
+        formData.get('name') || '',
+      ).trim(),
+      category: String(
+        formData.get('category') || '',
+      ).trim(),
+      file_path: String(
+        formData.get('file_path') || '',
+      ).trim(),
+    });
 
   if (error) {
     throw new Error(error.message);
@@ -112,27 +159,41 @@ export async function createDocumentAction(formData: FormData) {
   revalidatePath('/dashboard');
 }
 
-export async function createInvoiceAction(formData: FormData) {
+export async function createInvoiceAction(
+  formData: FormData,
+) {
   await requireProfile(true);
 
   const supabase = await createClient();
 
-  const amountDollars = Number(formData.get('amount') || 0);
+  const amountDollars = Number(
+    formData.get('amount') || 0,
+  );
 
   const amountCents = Number.isFinite(amountDollars)
     ? Math.round(amountDollars * 100)
     : 0;
 
-  const { error } = await supabase.from('invoices').insert({
-    client_id: String(formData.get('client_id') || ''),
-    invoice_number: optionalText(
-      formData.get('invoice_number'),
-    ),
-    amount_cents: amountCents,
-    status: String(formData.get('status') || 'due'),
-    due_date: optionalText(formData.get('due_date')),
-    file_path: optionalText(formData.get('file_path')),
-  });
+  const { error } = await supabase
+    .from('invoices')
+    .insert({
+      client_id: String(
+        formData.get('client_id') || '',
+      ),
+      invoice_number: optionalText(
+        formData.get('invoice_number'),
+      ),
+      amount_cents: amountCents,
+      status: String(
+        formData.get('status') || 'due',
+      ),
+      due_date: optionalText(
+        formData.get('due_date'),
+      ),
+      file_path: optionalText(
+        formData.get('file_path'),
+      ),
+    });
 
   if (error) {
     throw new Error(error.message);
@@ -153,10 +214,14 @@ export async function createClientNoteAction(
     formData.get('client_id') || '',
   );
 
-  const body = String(formData.get('body') || '').trim();
+  const body = String(
+    formData.get('body') || '',
+  ).trim();
 
   if (!clientId || !body) {
-    throw new Error('Client and note are required.');
+    throw new Error(
+      'Client and note are required.',
+    );
   }
 
   const { error } = await supabase
@@ -175,9 +240,7 @@ export async function createClientNoteAction(
     `/admin/clients/${clientId}/notes`,
   );
 
-  revalidatePath(
-    `/admin/clients/${clientId}`,
-  );
+  revalidatePath(`/admin/clients/${clientId}`);
 }
 
 export async function createContentAction(
@@ -245,10 +308,7 @@ export async function createContentAction(
     `/admin/clients/${clientId}/calendar`,
   );
 
-  revalidatePath(
-    `/admin/clients/${clientId}`,
-  );
-
+  revalidatePath(`/admin/clients/${clientId}`);
   revalidatePath('/dashboard');
 }
 
@@ -435,9 +495,7 @@ function revalidateContentPages(
   revalidatePath('/content');
   revalidatePath('/dashboard');
 
-  revalidatePath(
-    `/admin/clients/${clientId}`,
-  );
+  revalidatePath(`/admin/clients/${clientId}`);
 
   revalidatePath(
     `/admin/clients/${clientId}/content`,
@@ -484,11 +542,16 @@ export async function inviteClientUserAction(
       .single();
 
   if (clientError || !client) {
-    throw new Error('Client workspace not found.');
+    throw new Error(
+      'Client workspace not found.',
+    );
   }
 
   const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
+    process.env.NEXT_PUBLIC_APP_URL?.replace(
+      /\/$/,
+      '',
+    );
 
   if (!appUrl) {
     throw new Error(
@@ -533,5 +596,9 @@ export async function inviteClientUserAction(
   }
 
   revalidatePath(`/admin/clients/${clientId}`);
-  revalidatePath(`/admin/clients/${clientId}/settings`);
+
+  revalidatePath(
+    `/admin/clients/${clientId}/settings`,
+  );
 }
+ 
