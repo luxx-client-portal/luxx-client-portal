@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
+  ArrowLeft,
   BarChart3,
   CalendarDays,
   FileText,
@@ -10,6 +11,7 @@ import {
   MessageSquare,
   Phone,
   ReceiptText,
+  Settings,
   StickyNote,
   Users,
 } from 'lucide-react';
@@ -43,7 +45,7 @@ export default async function ClientWorkspaceLayout({
   const { data, error } = await supabase
     .from('clients')
     .select(
-      'id, name, contact_name, email, phone, package_name, status',
+      'id, name, contact_name, email, phone, package_name, status'
     )
     .eq('id', id)
     .single();
@@ -64,10 +66,16 @@ export default async function ClientWorkspaceLayout({
     [`${base}/requests`, 'Requests', MessageSquare],
     [`${base}/notes`, 'Notes', StickyNote],
     [`${base}/analytics`, 'Analytics', BarChart3],
+    [`${base}/settings`, 'Settings', Settings],
   ] as const;
 
   return (
     <>
+      <Link href="/admin/clients" className="back-link">
+        <ArrowLeft size={16} />
+        Back to Clients
+      </Link>
+
       <PageHeader
         eyebrow="CLIENT WORKSPACE"
         title={client.name}
@@ -103,14 +111,16 @@ export default async function ClientWorkspaceLayout({
 
       <nav className="workspace-tabs">
         {tabs.map(([href, label, Icon]) => (
-          <Link href={href} key={href}>
+          <Link key={href} href={href}>
             <Icon size={16} />
-            {label}
+            <span>{label}</span>
           </Link>
         ))}
       </nav>
 
-      {children}
+      <main className="workspace-content">
+        {children}
+      </main>
     </>
   );
 }
