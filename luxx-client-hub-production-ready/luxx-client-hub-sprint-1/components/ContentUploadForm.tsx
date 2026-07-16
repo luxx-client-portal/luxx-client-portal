@@ -4,6 +4,7 @@ import { FormEvent, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UploadCloud, X } from 'lucide-react';
 
+import { notifyContentUploadedAction } from '@/lib/actions/portal';
 import { createClient } from '@/lib/supabase/browser';
 
 type ContentType =
@@ -60,16 +61,20 @@ export default function ContentUploadForm({
   }, [contentType]);
 
   function handleFiles(selectedFiles: FileList | null) {
-    if (!selectedFiles) return;
+    if (!selectedFiles) {
+      return;
+    }
 
-    files.forEach((item) =>
-      URL.revokeObjectURL(item.previewUrl),
+    files.forEach((item) => {
+      URL.revokeObjectURL(item.previewUrl);
+    });
+
+    const nextFiles = Array.from(selectedFiles).map(
+      (file) => ({
+        file,
+        previewUrl: URL.createObjectURL(file),
+      }),
     );
-
-    const nextFiles = Array.from(selectedFiles).map((file) => ({
-      file,
-      previewUrl: URL.createObjectURL(file),
-    }));
 
     setFiles(nextFiles);
     setError('');
@@ -83,11 +88,15 @@ export default function ContentUploadForm({
         URL.revokeObjectURL(target.previewUrl);
       }
 
-      return current.filter((_, fileIndex) => fileIndex !== index);
+      return current.filter(
+        (_, fileIndex) => fileIndex !== index,
+      );
     });
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     setError('');
@@ -120,19 +129,21 @@ export default function ContentUploadForm({
 
       setProgressText('Creating content item...');
 
-      const { data: contentItem, error: contentError } =
-        await supabase
-          .from('content_items')
-          .insert({
-            client_id: clientId,
-            title: title.trim(),
-            content_type: contentType,
-            caption: caption.trim() || null,
-            scheduled_for: scheduledFor || null,
-            status,
-          })
-          .select('id')
-          .single();
+      const {
+        data: contentItem,
+        error: contentError,
+      } = await supabase
+        .from('content_items')
+        .insert({
+          client_id: clientId,
+          title: title.trim(),
+          content_type: contentType,
+          caption: caption.trim() || null,
+          scheduled_for: scheduledFor || null,
+          status,
+        })
+        .select('id')
+        .single();
 
       if (contentError || !contentItem) {
         throw new Error(
@@ -141,64 +152,103 @@ export default function ContentUploadForm({
         );
       }
 
-      const uploadedAssetIds: string[] = [];
-
-      for (let index = 0; index < files.length; index += 1) {
+      for (
+        let index = 0;
+        index < files.length;
+        index += 1
+      ) {
         const selected = files[index];
+
         const safeFileName = selected.file.name
           .toLowerCase()
           .replace(/[^a-z0-9._-]+/g, '-');
 
-        const storagePath = `${clientId}/${contentItem.id}/${String(
-          index + 1,
-        ).padStart(2, '0')}-${safeFileName}`;
+        const storagePath =
+          `${clientId}/${contentItem.id}/` +
+          `${String(index + 1).padStart(
+            2,
+            '0',
+          )}-${safeFileName}`;
 
         setProgressText(
-          `Uploading file ${index + 1} of ${files.length}...`,
+          `Uploading file ${index + 1} of ${
+            files.length
+          }...`,
         );
 
-        const { error: uploadError } = await supabase.storage
-          .from('content-assets')
-          .upload(storagePath, selected.file, {
-            cacheControl: '3600',
-            upsert: false,
-            contentType: selected.file.type,
-          });
+        const { error: uploadError } =
+          await supabase.storage
+            .from('content-assets')
+            .upload(
+              storagePath,
+              selected.file,
+              {
+                cacheControl: '3600',
+                upsert: false,
+                contentType:
+                  selected.file.type,
+              },
+            );
 
         if (uploadError) {
           throw new Error(uploadError.message);
         }
 
-        const { data: asset, error: assetError } =
+        const { error: assetError } =
           await supabase
             .from('content_assets')
             .insert({
-              content_item_id: contentItem.id,
+              content_item_id:
+                contentItem.id,
               client_id: clientId,
               storage_path: storagePath,
-              file_name: selected.file.name,
-              mime_type: selected.file.type,
-              file_size: selected.file.size,
+              file_name:
+                selected.file.name,
+              mime_type:
+                selected.file.type,
+              file_size:
+                selected.file.size,
               sort_order: index,
-            })
-            .select('id')
-            .single();
+            });
 
-        if (assetError || !asset) {
+        if (assetError) {
           throw new Error(
-            assetError?.message ||
+            assetError.message ||
               'Unable to save the uploaded file.',
           );
         }
-
-        uploadedAssetIds.push(asset.id);
       }
+
+      setProgressText(
+        'Finishing content setup...',
+      );
+
+      const notificationData = new FormData();
+
+      notificationData.set(
+        'client_id',
+        clientId,
+      );
+
+      notificationData.set(
+        'content_item_id',
+        contentItem.id,
+      );
+
+      notificationData.set(
+        'title',
+        title.trim(),
+      );
+
+      await notifyContentUploadedAction(
+        notificationData,
+      );
 
       setProgressText('Upload complete.');
 
-      files.forEach((item) =>
-        URL.revokeObjectURL(item.previewUrl),
-      );
+      files.forEach((item) => {
+        URL.revokeObjectURL(item.previewUrl);
+      });
 
       setTitle('');
       setCaption('');
@@ -222,7 +272,10 @@ export default function ContentUploadForm({
     <div className="card">
       <div className="card-head">
         <div>
-          <p className="eyebrow">NEW CONTENT</p>
+          <p className="eyebrow">
+            NEW CONTENT
+          </p>
+
           <h2>Upload Content</h2>
         </div>
       </div>
@@ -232,7 +285,9 @@ export default function ContentUploadForm({
         className="admin-form"
       >
         {error && (
-          <div className="alert error">{error}</div>
+          <div className="alert error">
+            {error}
+          </div>
         )}
 
         {progressText && (
@@ -243,6 +298,7 @@ export default function ContentUploadForm({
 
         <label>
           Content title
+
           <input
             value={title}
             onChange={(event) =>
@@ -254,27 +310,53 @@ export default function ContentUploadForm({
 
         <label>
           Content type
+
           <select
             value={contentType}
             onChange={(event) => {
               const nextType =
-                event.target.value as ContentType;
+                event.target
+                  .value as ContentType;
+
+              files.forEach((item) => {
+                URL.revokeObjectURL(
+                  item.previewUrl,
+                );
+              });
 
               setContentType(nextType);
               setFiles([]);
             }}
           >
-            <option value="Reel">Reel</option>
-            <option value="Carousel">Carousel</option>
-            <option value="Photo">Photo</option>
-            <option value="Story">Story</option>
-            <option value="TikTok">TikTok</option>
-            <option value="Video">Video</option>
+            <option value="Reel">
+              Reel
+            </option>
+
+            <option value="Carousel">
+              Carousel
+            </option>
+
+            <option value="Photo">
+              Photo
+            </option>
+
+            <option value="Story">
+              Story
+            </option>
+
+            <option value="TikTok">
+              TikTok
+            </option>
+
+            <option value="Video">
+              Video
+            </option>
           </select>
         </label>
 
         <label>
           Caption
+
           <textarea
             value={caption}
             onChange={(event) =>
@@ -286,10 +368,13 @@ export default function ContentUploadForm({
 
         <label>
           Scheduled date and time
+
           <input
             value={scheduledFor}
             onChange={(event) =>
-              setScheduledFor(event.target.value)
+              setScheduledFor(
+                event.target.value,
+              )
             }
             type="datetime-local"
           />
@@ -297,27 +382,43 @@ export default function ContentUploadForm({
 
         <label>
           Status
+
           <select
             value={status}
             onChange={(event) =>
               setStatus(
-                event.target.value as ContentStatus,
+                event.target
+                  .value as ContentStatus,
               )
             }
           >
-            <option value="draft">Draft</option>
+            <option value="draft">
+              Draft
+            </option>
+
             <option value="internal_review">
               Internal review
             </option>
+
             <option value="client_review">
               Client review
             </option>
+
             <option value="changes_requested">
               Changes requested
             </option>
-            <option value="approved">Approved</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="posted">Posted</option>
+
+            <option value="approved">
+              Approved
+            </option>
+
+            <option value="scheduled">
+              Scheduled
+            </option>
+
+            <option value="posted">
+              Posted
+            </option>
           </select>
         </label>
 
@@ -342,9 +443,13 @@ export default function ContentUploadForm({
             <input
               type="file"
               accept={acceptedFiles}
-              multiple={contentType === 'Carousel'}
+              multiple={
+                contentType === 'Carousel'
+              }
               onChange={(event) =>
-                handleFiles(event.target.files)
+                handleFiles(
+                  event.target.files,
+                )
               }
               required
             />
@@ -353,39 +458,55 @@ export default function ContentUploadForm({
 
         {files.length > 0 && (
           <div className="upload-preview-grid">
-            {files.map((selected, index) => (
-              <div
-                className="upload-preview"
-                key={`${selected.file.name}-${index}`}
-              >
-                {selected.file.type.startsWith('video/') ? (
-                  <video
-                    src={selected.previewUrl}
-                    controls
-                    preload="metadata"
-                  />
-                ) : (
-                  <img
-                    src={selected.previewUrl}
-                    alt={selected.file.name}
-                  />
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => removeFile(index)}
-                  aria-label={`Remove ${selected.file.name}`}
+            {files.map(
+              (selected, index) => (
+                <div
+                  className="upload-preview"
+                  key={`${selected.file.name}-${index}`}
                 >
-                  <X size={15} />
-                </button>
+                  {selected.file.type.startsWith(
+                    'video/',
+                  ) ? (
+                    <video
+                      src={
+                        selected.previewUrl
+                      }
+                      controls
+                      preload="metadata"
+                    />
+                  ) : (
+                    <img
+                      src={
+                        selected.previewUrl
+                      }
+                      alt={
+                        selected.file.name
+                      }
+                    />
+                  )}
 
-                <small>
-                  {contentType === 'Carousel'
-                    ? `Slide ${index + 1}`
-                    : selected.file.name}
-                </small>
-              </div>
-            ))}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      removeFile(index)
+                    }
+                    aria-label={`Remove ${selected.file.name}`}
+                  >
+                    <X size={15} />
+                  </button>
+
+                  <small>
+                    {contentType ===
+                    'Carousel'
+                      ? `Slide ${
+                          index + 1
+                        }`
+                      : selected.file
+                          .name}
+                  </small>
+                </div>
+              ),
+            )}
           </div>
         )}
 
