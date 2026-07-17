@@ -23,33 +23,86 @@ export async function createRequestAction(
   const profile = await requireProfile();
 
   if (!profile.client_id) {
-    throw new Error('No client assigned');
+    throw new Error('No client assigned.');
   }
 
   const supabase = await createClient();
 
-  const { error } = await supabase
+  const requestType = String(
+    formData.get('request_type') || '',
+  ).trim();
+
+  const details = String(
+    formData.get('details') || '',
+  ).trim();
+
+  const preferredDeadline = optionalText(
+    formData.get('preferred_deadline'),
+  );
+
+  if (!requestType || !details) {
+    throw new Error(
+      'Request type and details are required.',
+    );
+  }
+
+  const { data: request, error } = await supabase
     .from('requests')
     .insert({
       client_id: profile.client_id,
       created_by: profile.id,
-      request_type: String(
-        formData.get('request_type') || '',
-      ).trim(),
-      details: String(
-        formData.get('details') || '',
-      ).trim(),
-      preferred_deadline: optionalText(
-        formData.get('preferred_deadline'),
-      ),
-    });
+      request_type: requestType,
+      details,
+      preferred_deadline: preferredDeadline,
+      status: 'open',
+    })
+    .select('id, request_type')
+    .single();
 
-  if (error) {
-    throw new Error(error.message);
+  if (error || !request) {
+    throw new Error(
+      error?.message ||
+        'Unable to submit request.',
+    );
   }
+
+  await logActivity(supabase, {
+    clientId: profile.client_id,
+    actorId: profile.id,
+    actionType: 'request_created',
+    title: 'New client request',
+    description: `${request.request_type} was submitted.`,
+    entityType: 'request',
+    entityId: request.id,
+    metadata: {
+      preferredDeadline,
+    },
+  });
+
+  const adminIds = await getAdminUserIds();
+
+  await createNotifications({
+    recipientIds: adminIds.filter(
+      (recipientId) =>
+        recipientId !== profile.id,
+    ),
+    clientId: profile.client_id,
+    notificationType: 'request_created',
+    title: 'New client request',
+    body: `${request.request_type}: ${details}`,
+    link: `/admin/clients/${profile.client_id}/requests`,
+  });
 
   revalidatePath('/requests');
   revalidatePath('/dashboard');
+
+  revalidatePath(
+    `/admin/clients/${profile.client_id}`,
+  );
+
+  revalidatePath(
+    `/admin/clients/${profile.client_id}/requests`,
+  );
 }
 
 export async function createClientAction(
