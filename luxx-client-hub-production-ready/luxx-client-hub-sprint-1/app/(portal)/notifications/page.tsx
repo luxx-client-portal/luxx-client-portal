@@ -3,6 +3,10 @@ import {
   Bell,
   Check,
   CheckCheck,
+  CircleCheck,
+  FileUp,
+  MessageSquare,
+  RefreshCw,
 } from 'lucide-react';
 
 import {
@@ -23,21 +27,110 @@ type NotificationRecord = {
   created_at: string;
 };
 
+function relativeDate(value: string) {
+  const date = new Date(value);
+  const now = new Date();
+
+  const differenceInSeconds = Math.floor(
+    (now.getTime() - date.getTime()) / 1000,
+  );
+
+  if (differenceInSeconds < 60) {
+    return 'Just now';
+  }
+
+  const differenceInMinutes = Math.floor(
+    differenceInSeconds / 60,
+  );
+
+  if (differenceInMinutes < 60) {
+    return `${differenceInMinutes} ${
+      differenceInMinutes === 1 ? 'minute' : 'minutes'
+    } ago`;
+  }
+
+  const differenceInHours = Math.floor(
+    differenceInMinutes / 60,
+  );
+
+  if (differenceInHours < 24) {
+    return `${differenceInHours} ${
+      differenceInHours === 1 ? 'hour' : 'hours'
+    } ago`;
+  }
+
+  const differenceInDays = Math.floor(
+    differenceInHours / 24,
+  );
+
+  if (differenceInDays === 1) {
+    return 'Yesterday';
+  }
+
+  if (differenceInDays < 7) {
+    return `${differenceInDays} days ago`;
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year:
+      date.getFullYear() !== now.getFullYear()
+        ? 'numeric'
+        : undefined,
+  }).format(date);
+}
+
+function NotificationIcon({
+  type,
+}: {
+  type: string;
+}) {
+  if (
+    type === 'content_approved' ||
+    type === 'request_status_updated'
+  ) {
+    return <CircleCheck size={18} />;
+  }
+
+  if (
+    type === 'content_uploaded' ||
+    type === 'document_uploaded'
+  ) {
+    return <FileUp size={18} />;
+  }
+
+  if (
+    type === 'content_comment' ||
+    type === 'request_created'
+  ) {
+    return <MessageSquare size={18} />;
+  }
+
+  if (type === 'content_changes_requested') {
+    return <RefreshCw size={18} />;
+  }
+
+  return <Bell size={18} />;
+}
+
 export default async function NotificationsPage() {
   const profile = await requireProfile();
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from('notifications')
-    .select(`
-      id,
-      notification_type,
-      title,
-      body,
-      link,
-      is_read,
-      created_at
-    `)
+    .select(
+      `
+        id,
+        notification_type,
+        title,
+        body,
+        link,
+        is_read,
+        created_at
+      `,
+    )
     .eq('recipient_id', profile.id)
     .order('created_at', {
       ascending: false,
@@ -66,12 +159,16 @@ export default async function NotificationsPage() {
       <section className="notification-summary">
         <div className="stat">
           <div className="stat-icon">
-            <Bell />
+            <Bell size={21} />
           </div>
 
           <div>
             <strong>{unreadCount}</strong>
-            <span>Unread notifications</span>
+            <span>
+              {unreadCount === 1
+                ? 'Unread notification'
+                : 'Unread notifications'}
+            </span>
           </div>
         </div>
 
@@ -99,6 +196,13 @@ export default async function NotificationsPage() {
 
             <h2>Notifications</h2>
           </div>
+
+          <span className="notification-total">
+            {notifications.length}{' '}
+            {notifications.length === 1
+              ? 'notification'
+              : 'notifications'}
+          </span>
         </div>
 
         {notifications.length ? (
@@ -114,25 +218,36 @@ export default async function NotificationsPage() {
                   key={notification.id}
                 >
                   <div className="notification-icon">
-                    <Bell size={18} />
+                    <NotificationIcon
+                      type={
+                        notification.notification_type
+                      }
+                    />
                   </div>
 
                   <div className="notification-copy">
-                    <strong>
-                      {notification.title}
-                    </strong>
+                    <div className="notification-title-row">
+                      <strong>
+                        {notification.title}
+                      </strong>
+
+                      {!notification.is_read && (
+                        <span
+                          className="notification-unread-dot"
+                          aria-label="Unread"
+                        />
+                      )}
+                    </div>
 
                     {notification.body && (
-                      <p>
-                        {notification.body}
-                      </p>
+                      <p>{notification.body}</p>
                     )}
 
-                    <small>
-                      {new Intl.DateTimeFormat(
+                    <small
+                      title={new Intl.DateTimeFormat(
                         'en-US',
                         {
-                          month: 'short',
+                          month: 'long',
                           day: 'numeric',
                           year: 'numeric',
                           hour: 'numeric',
@@ -142,6 +257,10 @@ export default async function NotificationsPage() {
                         new Date(
                           notification.created_at,
                         ),
+                      )}
+                    >
+                      {relativeDate(
+                        notification.created_at,
                       )}
                     </small>
                   </div>
@@ -186,7 +305,7 @@ export default async function NotificationsPage() {
         ) : (
           <Empty
             title="No notifications yet"
-            body="Approvals, comments and other updates will appear here."
+            body="Approvals, comments, uploads and request updates will appear here."
           />
         )}
       </section>
