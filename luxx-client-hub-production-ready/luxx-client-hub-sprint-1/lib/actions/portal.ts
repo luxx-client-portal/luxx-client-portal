@@ -12,7 +12,9 @@ import {
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
-function optionalText(value: FormDataEntryValue | null) {
+function optionalText(
+  value: FormDataEntryValue | null,
+) {
   const text = String(value || '').trim();
   return text || null;
 }
@@ -163,7 +165,8 @@ export async function createClientAction(
         package_name: optionalText(
           formData.get('package_name'),
         ),
-        monthly_retainer: monthlyRetainerCents,
+        monthly_retainer:
+          monthlyRetainerCents,
         contract_start: optionalText(
           formData.get('contract_start'),
         ),
@@ -659,7 +662,8 @@ export async function requestContentChangesAction(
   await logActivity(supabase, {
     clientId,
     actorId: profile.id,
-    actionType: 'content_changes_requested',
+    actionType:
+      'content_changes_requested',
     title: 'Changes requested',
     description: `Changes were requested for ${contentItem.title}.`,
     entityType: 'content_item',
@@ -832,23 +836,6 @@ export async function inviteClientUserAction(
     );
   }
 
-  const supabase = await createClient();
-  const adminSupabase =
-    createAdminClient();
-
-  const { data: client, error: clientError } =
-    await supabase
-      .from('clients')
-      .select('id, name')
-      .eq('id', clientId)
-      .single();
-
-  if (clientError || !client) {
-    throw new Error(
-      'Client workspace not found.',
-    );
-  }
-
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL?.replace(
       /\/$/,
@@ -858,6 +845,23 @@ export async function inviteClientUserAction(
   if (!appUrl) {
     throw new Error(
       'NEXT_PUBLIC_APP_URL is not configured.',
+    );
+  }
+
+  const supabase = await createClient();
+  const adminSupabase = createAdminClient();
+
+  const { data: client, error: clientError } =
+    await adminSupabase
+      .from('clients')
+      .select('id, name')
+      .eq('id', clientId)
+      .single();
+
+  if (clientError || !client) {
+    throw new Error(
+      clientError?.message ||
+        'Client workspace not found.',
     );
   }
 
@@ -878,6 +882,11 @@ export async function inviteClientUserAction(
     );
 
   if (inviteError) {
+    console.error(
+      'Supabase invite failed:',
+      inviteError.message,
+    );
+
     throw new Error(inviteError.message);
   }
 
@@ -890,29 +899,50 @@ export async function inviteClientUserAction(
   const { error: profileError } =
     await adminSupabase
       .from('profiles')
-      .update({
-        client_id: clientId,
-        role: 'client',
-        full_name: fullName || email,
-      })
-      .eq('id', invitation.user.id);
+      .upsert(
+        {
+          id: invitation.user.id,
+          client_id: clientId,
+          role: 'client',
+          full_name: fullName || email,
+        },
+        {
+          onConflict: 'id',
+        },
+      );
 
   if (profileError) {
-    throw new Error(profileError.message);
+    console.error(
+      'Invite succeeded, but profile setup failed:',
+      profileError.message,
+    );
+
+    throw new Error(
+      `The invitation was sent, but the client profile could not be created: ${profileError.message}`,
+    );
   }
 
-  await logActivity(supabase, {
-    clientId,
-    actorId: profile.id,
-    actionType: 'client_invited',
-    title: 'Client user invited',
-    description: `${fullName || email} was invited to ${client.name}.`,
-    entityType: 'profile',
-    entityId: invitation.user.id,
-    metadata: {
-      email,
-    },
-  });
+  try {
+    await logActivity(supabase, {
+      clientId,
+      actorId: profile.id,
+      actionType: 'client_invited',
+      title: 'Client user invited',
+      description: `${
+        fullName || email
+      } was invited to ${client.name}.`,
+      entityType: 'profile',
+      entityId: invitation.user.id,
+      metadata: {
+        email,
+      },
+    });
+  } catch (activityError) {
+    console.error(
+      'Invite succeeded, but activity logging failed:',
+      activityError,
+    );
+  }
 
   revalidatePath(
     `/admin/clients/${clientId}`,
